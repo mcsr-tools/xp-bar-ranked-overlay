@@ -7,6 +7,10 @@
 > Twitch connected to your MCSR Ranked profile and are currently streaming on
 > said connected channel.
 
+> [!IMPORTANT]
+> Overlay is currently positioned specifically for 1920x1080 on GUI 4.
+> ([see issue](https://github.com/mcsr-tools/xp-bar-ranked-overlay/issues/4))
+
 A proof of concept OBS script that adds an overlay for your XP bar to show your recent ranked matches.
 
 Automatically hides the overlay when not in a match.
