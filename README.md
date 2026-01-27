@@ -2,6 +2,11 @@
 
 ![Demo screenshot](./image.jpg)
 
+> [!IMPORTANT]
+> The script makes use of the live API, meaning it only works if you have your
+> Twitch connected to your MCSR Ranked profile and are currently streaming on
+> said connected channel.
+
 A proof of concept OBS script that adds an overlay for your XP bar to show your recent ranked matches.
 
 Automatically hides the overlay when not in a match.
