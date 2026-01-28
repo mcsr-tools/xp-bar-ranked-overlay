@@ -117,8 +117,10 @@ def timer():
 
     if is_live:
         source, scene = get_scene()
-        fill_xp_bar_segments_with_match_results(scene)
-        obs.obs_source_release(source)
+        if scene:
+            fill_xp_bar_segments_with_match_results(scene)
+        if source:
+            obs.obs_source_release(source)
 
 
 def timer_resize_check():
@@ -149,16 +151,26 @@ def update_visibility():
 
 def gen_scene(props, property):
     source, scene = get_scene()
-    gen_xp_bar(scene)
-    gen_xp_bar_segments(scene)
-    fill_xp_bar_segments_with_match_results(scene)
-    obs.obs_source_release(source)
+
+    if not source:
+        source = obs.obs_source_create("scene", SCENE_NAME, None, None)
+        scene = obs.obs_scene_from_source(source)
+
+    if scene:
+        gen_xp_bar(scene)
+        gen_xp_bar_segments(scene)
+        fill_xp_bar_segments_with_match_results(scene)
+    else:
+        logger.error(f"failed creating {SCENE_NAME} scene")
+
+    if source:
+        obs.obs_source_release(source)
 
 
 def get_scene():
     source = obs.obs_get_source_by_name(SCENE_NAME)
     if not source:
-        source = obs.obs_source_create("scene", SCENE_NAME, None, None)
+        return None, None
     return source, obs.obs_scene_from_source(source)
 
 
@@ -258,6 +270,9 @@ def fill_xp_bar_segments_with_match_results(scene):
 
 def set_visibility(visibility: bool):
     source, scene = get_scene()
+    if not scene:
+        return
+
     items = obs.obs_scene_enum_items(scene)
     if items:
         for item in items:
