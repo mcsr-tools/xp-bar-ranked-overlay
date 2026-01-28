@@ -29,6 +29,7 @@ SCENE_NAME = "xbro"
 SETTING_IS_ENABLED = "enabled"
 SETTING_MC_NAME = "mc_name"
 SETTING_BTN_GEN = "gen"
+SETTING_MC_SOURCE = "mc_source"
 
 
 MC_XP_BAR_SOURCE_NAME = "xp-bar"
@@ -51,10 +52,17 @@ MC_XP_BAR_SEGMENT_COLOR_DRAW = 0xFFFF0000
 
 
 TIMER_INTERVAL = 5_000
+TIMER_RESIZE_CHECK_INTERVAL = 1_000 // 24
 
+
+mc_source_name = None
+_obs_mc_source = None
 
 mc_name = None
+
 is_enabled = False
+is_live = False
+is_prev_resize_check_fs = None
 
 
 def script_properties():
@@ -65,35 +73,78 @@ def script_properties():
         "MC name",
         obs.OBS_TEXT_DEFAULT,
     )
+    obs.obs_properties_add_text(
+        props, SETTING_MC_SOURCE, "MC source name", obs.OBS_TEXT_DEFAULT
+    )
     obs.obs_properties_add_bool(props, SETTING_IS_ENABLED, "Enable")
     obs.obs_properties_add_button(props, SETTING_BTN_GEN, "Generate scene", gen_scene)
     return props
 
 
 def script_update(settings):
-    global mc_name, is_enabled
+    global mc_name, is_enabled, mc_source_name, _obs_mc_source
+
+    set_visibility(False)
 
     mc_name = obs.obs_data_get_string(settings, SETTING_MC_NAME)
+    mc_source_name = obs.obs_data_get_string(settings, SETTING_MC_SOURCE)
+
+    if _obs_mc_source:
+        obs.obs_source_release(_obs_mc_source)
+        _obs_mc_source = None
 
     is_enabled = obs.obs_data_get_bool(settings, SETTING_IS_ENABLED)
-    if not is_enabled:
-        set_visibility(False)
 
     obs.timer_remove(timer)
+    obs.timer_remove(timer_resize_check)
     if is_enabled:
         obs.timer_add(timer, TIMER_INTERVAL)
+        obs.timer_add(timer_resize_check, TIMER_RESIZE_CHECK_INTERVAL)
+
+
+def script_unload():
+    global _obs_mc_source
+    if _obs_mc_source:
+        obs.obs_source_release(_obs_mc_source)
+        _obs_mc_source = None
 
 
 def timer():
-    global mc_name
+    global mc_name, is_live, is_prev_resize_check_fs
 
     is_live = mcsrranked_is_player_live(mc_name)
-    set_visibility(is_live)
+    update_visibility()
 
     if is_live:
         source, scene = get_scene()
         fill_xp_bar_segments_with_match_results(scene)
         obs.obs_source_release(source)
+
+
+def timer_resize_check():
+    global is_prev_resize_check_fs, is_live
+
+    if not is_live:
+        return
+
+    mc_source = get_mc_source()
+    if not mc_source:
+        return
+
+    width = obs.obs_source_get_width(mc_source)
+    height = obs.obs_source_get_height(mc_source)
+
+    # TODO(GH-2): support resolutions other than 1080p
+    is_currently_fs = height == 1080 and width == 1920
+
+    if is_currently_fs != is_prev_resize_check_fs:
+        is_prev_resize_check_fs = is_currently_fs
+        update_visibility()
+
+
+def update_visibility():
+    global is_live, is_prev_resize_check_fs
+    set_visibility(bool(is_live and is_prev_resize_check_fs))
 
 
 def gen_scene(props, property):
@@ -213,6 +264,13 @@ def set_visibility(visibility: bool):
             obs.obs_sceneitem_set_visible(item, visibility)
         obs.sceneitem_list_release(items)
     obs.obs_source_release(source)
+
+
+def get_mc_source():
+    global _obs_mc_source, mc_source_name
+    if not _obs_mc_source and mc_source_name:
+        _obs_mc_source = obs.obs_get_source_by_name(mc_source_name)
+    return _obs_mc_source
 
 
 def mcsrranked_recent_matches_results(
