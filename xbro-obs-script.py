@@ -37,14 +37,13 @@ MC_XP_BAR_POS_X = 596.0
 MC_XP_BAR_POS_Y = 964.0
 MC_XP_BAR_WIDTH = 728
 MC_XP_BAR_HEIGHT = 20
+MC_XP_BAR_BORDER_SIZE = 4
 
 MC_XP_BAR_SEGMENTS = 18
 
 MC_XP_BAR_SEGMENT_SOURCE_NAME_PREFIX = "xp-bar-segment"
 MC_XP_BAR_SEGMENT_W = 36
 MC_XP_BAR_SEGMENT_H = 12
-MC_XP_BAR_SEGMENT_GAP = 4
-MC_XP_BAR_SEGMENT_BORDER_SIZE = 4
 
 MC_XP_BAR_SEGMENT_COLOR_WIN = 0xFF00FF00
 MC_XP_BAR_SEGMENT_COLOR_LOSS = 0xFF0000FF
@@ -216,10 +215,12 @@ def gen_xp_bar_segments(scene):
             scene_item = obs.obs_scene_add(scene, source)
 
         pos = obs.vec2()
-        segment_width = MC_XP_BAR_WIDTH // MC_XP_BAR_SEGMENTS
-        # FIXME: end segments drifting/overflowing
-        pos.x = MC_XP_BAR_POS_X + MC_XP_BAR_SEGMENT_BORDER_SIZE + i * segment_width
-        pos.y = MC_XP_BAR_POS_Y + MC_XP_BAR_SEGMENT_BORDER_SIZE
+        start_x = MC_XP_BAR_POS_X + MC_XP_BAR_BORDER_SIZE
+        left_x = i * MC_XP_BAR_SEGMENT_W + i * MC_XP_BAR_BORDER_SIZE
+        pos.x = start_x + left_x
+        if i >= (MC_XP_BAR_SEGMENTS // 2):
+            pos.x += MC_XP_BAR_BORDER_SIZE
+        pos.y = MC_XP_BAR_POS_Y + MC_XP_BAR_BORDER_SIZE
 
         obs.obs_sceneitem_set_pos(scene_item, pos)
         obs.obs_sceneitem_set_order(scene_item, obs.OBS_ORDER_MOVE_TOP)
