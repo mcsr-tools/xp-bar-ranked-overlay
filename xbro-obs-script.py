@@ -5,6 +5,7 @@ import json
 import logging
 import sys
 import typing
+import threading
 
 
 def create_logger(name: str):
@@ -51,7 +52,6 @@ MC_XP_BAR_SEGMENT_COLOR_WIN = 0xFF00FF00
 MC_XP_BAR_SEGMENT_COLOR_LOSS = 0xFF0000FF
 MC_XP_BAR_SEGMENT_COLOR_DRAW = 0xFFFF0000
 
-
 TIMER_INTERVAL = 5_000
 TIMER_RESIZE_CHECK_INTERVAL = 1_000 // 24
 
@@ -64,6 +64,12 @@ mc_name = None
 is_enabled = False
 is_live = False
 is_prev_resize_check_fs = None
+
+
+data_lock = threading.Lock()
+is_fetching = False
+cached_is_live = False
+cached_match_results = None
 
 
 def script_properties():
@@ -110,16 +116,38 @@ def script_unload():
         _obs_mc_source = None
 
 
-def timer():
-    global mc_name, is_live, is_prev_resize_check_fs
+def fetch_data_background(name):
+    global is_fetching, cached_is_live, cached_match_results, data_lock
+    try:
+        live_status = mcsrranked_is_player_live(name)
+        match_data = mcsrranked_recent_matches_results(name, MC_XP_BAR_SEGMENTS)
+        with data_lock:
+            cached_is_live = live_status
+            cached_match_results = match_data
+    except Exception as e:
+        logger.error(f"background fetch error: {e}")
+    finally:
+        is_fetching = False
 
-    is_live = mcsrranked_is_player_live(mc_name)
+
+def timer():
+    global mc_name, is_live, is_fetching, cached_is_live, cached_match_results, data_lock
+
+    if not is_fetching and mc_name:
+        is_fetching = True
+        t = threading.Thread(target=fetch_data_background, args=(mc_name,), daemon=True)
+        t.start()
+
+    with data_lock:
+        is_live = cached_is_live
+        match_results = cached_match_results
+
     update_visibility()
 
-    if is_live:
+    if is_live and match_results:
         source, scene = get_scene()
         if scene:
-            fill_xp_bar_segments_with_match_results(scene)
+            fill_xp_bar_segments_with_data(scene, match_results)
         if source:
             obs.obs_source_release(source)
 
@@ -160,7 +188,9 @@ def gen_scene(props, property):
     if scene:
         gen_xp_bar(scene)
         gen_xp_bar_segments(scene)
-        fill_xp_bar_segments_with_match_results(scene)
+        with data_lock:
+            if cached_match_results:
+                fill_xp_bar_segments_with_data(scene, cached_match_results)
     else:
         logger.error(f"failed creating {SCENE_NAME} scene")
 
@@ -228,44 +258,39 @@ def gen_xp_bar_segments(scene):
         obs.obs_source_release(source)
 
 
-def fill_xp_bar_segments_with_match_results(scene):
-    global mc_name
-
-    if not mc_name:
-        logger.error("fill_xp_bar_segments_with_match_results: mc_name is null")
-        return
-
-    match_results = mcsrranked_recent_matches_results(mc_name, MC_XP_BAR_SEGMENTS)
+def fill_xp_bar_segments_with_data(scene, match_results):
     if not match_results:
-        logger.error("faifill_xp_bar_segments_with_match_results: no match results")
         return
 
-    match_results.reverse()
+    local_match_results = list(match_results)
+    local_match_results.reverse()
+
     for i in range(MC_XP_BAR_SEGMENTS):
         name = f"{MC_XP_BAR_SEGMENT_SOURCE_NAME_PREFIX}-{i}"
         segment_source = obs.obs_get_source_by_name(name)
 
-        match_result = match_results[i]
-        if not match_result:
+        if not segment_source:
             continue
 
+        match_result = local_match_results[i] if i < len(local_match_results) else None
         color = None
         if match_result == "W":
             color = MC_XP_BAR_SEGMENT_COLOR_WIN
-        if match_result == "L":
+        elif match_result == "L":
             color = MC_XP_BAR_SEGMENT_COLOR_LOSS
-        if match_result == "D":
+        elif match_result == "D":
             color = MC_XP_BAR_SEGMENT_COLOR_DRAW
 
-        settings = obs.obs_source_get_settings(segment_source)
         if match_result:
+            settings = obs.obs_source_get_settings(segment_source)
             obs.obs_data_set_int(settings, "color", color)
             obs.obs_source_update(segment_source, settings)
+            obs.obs_data_release(settings)
         else:
             scene_item = obs.obs_scene_find_source(scene, name)
             if scene_item:
                 obs.obs_sceneitem_set_visible(scene_item, False)
-        obs.obs_data_release(settings)
+
         obs.obs_source_release(segment_source)
 
 
