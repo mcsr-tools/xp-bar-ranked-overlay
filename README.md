@@ -21,7 +21,8 @@ Automatically hides the overlay when not in a match.
 2. In OBS click on (+) in Tools -> Scripts
 3. Select `xbro-obs-script.py`
 4. Enter your MC name
-5. Cick on **Generate scene**
-6. Include the generated `xbro` scene in your gameplay scene as a source (make sure its above your capture source)
-7. Toggle **Enable**
-8. Done
+5. Enter your MC gameplay OBS source name
+6. Cick on **Generate scene**
+7. Include the generated `xbro` scene in your gameplay scene as a source (make sure its above your capture source)
+8. Toggle **Enable**
+9. Done
